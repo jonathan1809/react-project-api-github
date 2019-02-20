@@ -10,6 +10,7 @@ export const fetchList = (criteria) => {
                 dispatch({ type: REQUEST_LIST_REPOSITORIES_SUCCESS, items: json.items, total_count: json.total_count })
             })
             .catch(err => {
+                alert('Something went wrong, try again');
                 console.log(err)
                 onError(err, dispatch);
             })

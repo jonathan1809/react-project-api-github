@@ -10,18 +10,24 @@ import TableRow from '@material-ui/core/TableRow';
 import Paper from '@material-ui/core/Paper';
 import { connect } from 'react-redux';
 import * as creators from '../../redux/listRepositories/actionsCreators'
-let counter = 0;
-function createData(name, calories, fat, carbs, protein) {
-    counter += 1;
-    return { id: counter, name, calories, fat, carbs, protein };
+import LinearProgress from '@material-ui/core/LinearProgress';
+import Grid from '@material-ui/core/Grid';
+import Dialog from '../../components/dialog';
+import Button from '@material-ui/core/Button';
+function createData(id, name, score, watchers, created_at, owner, id_owner) {
+    return { id: id, name, score, watchers, owner, id_owner, created_at: formatDate(created_at) };
 }
-
+function formatDate(date) {
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const formatDate = new Date(date);
+    return formatDate.toLocaleDateString("en-US", options);
+}
 const rows = [
-    { id: 'name', numeric: false, disablePadding: true, label: 'Dessert (100g serving)' },
-    { id: 'calories', numeric: true, disablePadding: false, label: 'Calories' },
-    { id: 'fat', numeric: true, disablePadding: false, label: 'Fat (g)' },
-    { id: 'carbs', numeric: true, disablePadding: false, label: 'Carbs (g)' },
-    { id: 'protein', numeric: true, disablePadding: false, label: 'Protein (g)' },
+    { id: 'name', numeric: false, disablePadding: true, label: 'Name' },
+    { id: 'owner', numeric: false, disablePadding: true, label: 'Owner' },
+    { id: 'score', numeric: true, disablePadding: false, label: 'Score (stars)' },
+    { id: 'watchers', numeric: true, disablePadding: false, label: 'watchers' },
+    { id: 'created_at', numeric: true, disablePadding: false, label: 'Date' },
 ];
 
 
@@ -40,55 +46,53 @@ const styles = theme => ({
 
 class EnhancedTable extends Component {
     state = {
-        order: 'asc',
-        orderBy: 'calories',
         selected: [],
-        data: [
-            createData('Cupcake', 305, 3.7, 67, 4.3),
-            createData('Donut', 452, 25.0, 51, 4.9),
-            createData('Eclair', 262, 16.0, 24, 6.0),
-            createData('Frozen yoghurt', 159, 6.0, 24, 4.0),
-            createData('Gingerbread', 356, 16.0, 49, 3.9),
-            createData('Honeycomb', 408, 3.2, 87, 6.5),
-            createData('Ice cream sandwich', 237, 9.0, 37, 4.3),
-            createData('Jelly Bean', 375, 0.0, 94, 0.0),
-            createData('KitKat', 518, 26.0, 65, 7.0),
-            createData('Lollipop', 392, 0.2, 98, 0.0),
-            createData('Marshmallow', 318, 0, 81, 2.0),
-            createData('Nougat', 360, 19.0, 9, 37.0),
-            createData('Oreo', 437, 18.0, 63, 4.0),
-        ],
+        data: [],
+        total_count: 0,
         page: 0,
         rowsPerPage: 5,
+        comments: [],
+        open: false,
+        loading: false,
+        name: ''
     };
 
     componentWillReceiveProps(nextProps) {
-        console.log(nextProps.items)
+
+        const data = nextProps.items.map(r => {
+            return createData(r.id, r.name, r.score, r.watchers, r.created_at, r.owner.login, r.owner.id)
+        })
+        this.setState({ data, total_count: nextProps.total_count });
+        
     }
     componentDidMount() {
+       
         this.props.searchRepositories(this.props.criteria);
     }
 
+    shouldComponentUpdate(prevProps, prevState) {
+        return prevProps.criteria !== this.props.criteria || 
+        prevProps.total_count !== this.props.total_count || 
+        prevState.rowsPerPage !== this.state.rowsPerPage || 
+        this.state.open !== prevState.open || 
+        this.state.page !== prevState.page || 
+        prevState.loading !== this.state.loading
+    }
 
-    handleClick = (event, id) => {
-        const { selected } = this.state;
-        const selectedIndex = selected.indexOf(id);
-        let newSelected = [];
+    handleClick = (event, name, owner) => {
+        this.setState({ loading: true })
+        fetch(`https://api.github.com/repos/${owner}/${name}/comments`, { method: 'GET' })
+            .then(res => res.json())
+            .then(json => {
+                const commentsSorted = json.sort(function (a, b) {
+                    return new Date(b.created_at) - new Date(a.created_at);
+                });
+                this.setState({ comments: commentsSorted, loading: false, open: true, name })
+            })
+            .catch(err => {
+                alert('Something went wrong, try again');
+            })
 
-        if (selectedIndex === -1) {
-            newSelected = newSelected.concat(selected, id);
-        } else if (selectedIndex === 0) {
-            newSelected = newSelected.concat(selected.slice(1));
-        } else if (selectedIndex === selected.length - 1) {
-            newSelected = newSelected.concat(selected.slice(0, -1));
-        } else if (selectedIndex > 0) {
-            newSelected = newSelected.concat(
-                selected.slice(0, selectedIndex),
-                selected.slice(selectedIndex + 1),
-            );
-        }
-
-        this.setState({ selected: newSelected });
     };
 
     handleChangePage = (event, page) => {
@@ -101,90 +105,119 @@ class EnhancedTable extends Component {
 
     isSelected = id => this.state.selected.indexOf(id) !== -1;
 
+    toogleModal = () => {
+        this.setState(state => {
+            return { open: !state.open }
+        });
+    };
+
+    returnSearch = () => {
+        this.props.history.push('/');
+    }
     render() {
-        const { classes } = this.props;
-        const { data, order, orderBy, selected, rowsPerPage, page } = this.state;
+        const { classes, loading } = this.props;
+        const { data, order, orderBy, rowsPerPage, page, total_count, open, name, comments } = this.state;
         const emptyRows = rowsPerPage - Math.min(rowsPerPage, data.length - page * rowsPerPage);
 
         return (
-            <Paper className={classes.root}>
-                <div className={classes.tableWrapper}>
-                    <Table className={classes.table} aria-labelledby="tableTitle">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell padding="checkbox">
-                                </TableCell>
-                                {rows.map(
-                                    row => (
-                                        <TableCell
-                                            key={row.id}
-                                            align={row.numeric ? 'right' : 'left'}
-                                            padding={row.disablePadding ? 'none' : 'default'}
-                                            sortDirection={orderBy === row.id ? order : false}
-                                        >
+            <Grid container spacing={24}>
+                <Paper className={classes.root}>
+                    <Grid container
+                        direction="row"
+                        justify="center"
+                        alignItems="center">
 
+                        <Grid item xs={1} >
+                            <Button variant="contained" color="primary" onClick={this.returnSearch}>
+                                {'< Return'}
+                            </Button>
+                        </Grid>
+                        <Grid item xs={11}>
+                            <h1 style={{ color: 'black' }}>Count repositories: {total_count}</h1>
+                        </Grid>
 
-                                            {row.label}
+                        {loading || this.state.loading ? <LinearProgress /> : null}
 
+                    </Grid>
+                </Paper>
+                <Paper className={classes.root}>
 
-                                        </TableCell>
-                                    ),
-                                    this,
-                                )}
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {data
-                                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                                .map(n => {
-                                    const isSelected = this.isSelected(n.id);
-                                    return (
-                                        <TableRow
-                                            hover
-                                            onClick={event => this.handleClick(event, n.id)}
-                                            role="checkbox"
-                                            aria-checked={isSelected}
-                                            tabIndex={-1}
-                                            key={n.id}
-                                            selected={isSelected}
-                                        >
-                                            <TableCell padding="checkbox">
-
+                    <div className={classes.tableWrapper}>
+                        <Table className={classes.table} aria-labelledby="tableTitle">
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell padding="checkbox">
+                                    </TableCell>
+                                    {rows.map(
+                                        row => (
+                                            <TableCell
+                                                key={row.id}
+                                                align={row.numeric ? 'right' : 'left'}
+                                                padding={row.disablePadding ? 'none' : 'default'}
+                                                sortDirection={orderBy === row.id ? order : false}
+                                            >
+                                                {row.label}
                                             </TableCell>
-                                            <TableCell component="th" scope="row" padding="none">
-                                                {n.name}
-                                            </TableCell>
-                                            <TableCell align="right">{n.calories}</TableCell>
-                                            <TableCell align="right">{n.fat}</TableCell>
-                                            <TableCell align="right">{n.carbs}</TableCell>
-                                            <TableCell align="right">{n.protein}</TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            {emptyRows > 0 && (
-                                <TableRow style={{ height: 49 * emptyRows }}>
-                                    <TableCell colSpan={6} />
+                                        ),
+                                        this,
+                                    )}
                                 </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-                <TablePagination
-                    rowsPerPageOptions={[5, 10, 25]}
-                    component="div"
-                    count={data.length}
-                    rowsPerPage={rowsPerPage}
-                    page={page}
-                    backIconButtonProps={{
-                        'aria-label': 'Previous Page',
-                    }}
-                    nextIconButtonProps={{
-                        'aria-label': 'Next Page',
-                    }}
-                    onChangePage={this.handleChangePage}
-                    onChangeRowsPerPage={this.handleChangeRowsPerPage}
-                />
-            </Paper>
+                            </TableHead>
+                            <TableBody>
+                                {data
+                                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                                    .map(n => {
+                                        const isSelected = this.isSelected(n.id);
+                                        return (
+                                            <TableRow
+                                                hover
+                                                onClick={event => this.handleClick(event, n.name, n.owner)}
+                                                role="checkbox"
+                                                aria-checked={isSelected}
+                                                tabIndex={-1}
+                                                key={n.id}
+                                                selected={isSelected}
+                                            >
+                                                <TableCell padding="checkbox">
+
+                                                </TableCell>
+                                                <TableCell component="th" scope="row" padding="none">
+                                                    {n.name}
+                                                </TableCell>
+                                                <TableCell component="th" scope="row" padding="none">{n.owner}</TableCell>
+                                                <TableCell align="right">{n.score}</TableCell>
+                                                <TableCell align="right">{n.watchers}</TableCell>
+                                                <TableCell align="right">{n.created_at}</TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                {emptyRows > 0 && (
+                                    <TableRow style={{ height: 49 * emptyRows }}>
+                                        <TableCell colSpan={6} />
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    <TablePagination
+                        rowsPerPageOptions={[5, 10, 25]}
+                        component="div"
+                        count={data.length}
+                        rowsPerPage={rowsPerPage}
+                        page={page}
+                        backIconButtonProps={{
+                            'aria-label': 'Previous Page',
+                        }}
+                        nextIconButtonProps={{
+                            'aria-label': 'Next Page',
+                        }}
+                        onChangePage={this.handleChangePage}
+                        onChangeRowsPerPage={this.handleChangeRowsPerPage}
+                    />
+                </Paper>
+                <Dialog handleClose={this.toogleModal} open={open} name={name} comments={comments} />
+            </Grid >
+
         );
     }
 }

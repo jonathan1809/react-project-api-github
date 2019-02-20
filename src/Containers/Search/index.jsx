@@ -3,6 +3,7 @@ import Input from '../../components/input';
 import Button from '../../components/button';
 import { connect } from 'react-redux';
 import { withRouter } from 'react-router-dom';
+import './index.scss'
 class search extends Component {
     constructor(props) {
         super(props);
@@ -19,7 +20,6 @@ class search extends Component {
 
     onSubmit = (e) => {
         e.preventDefault();
-        console.log(this.state.criteria)
         this.props.store(this.state.criteria);
         this.props.history.push('/list');
     }
@@ -27,17 +27,21 @@ class search extends Component {
     render() {
         const { criteria } = this.state;
         return (
-            <form>
-                <Input placeholder={'Search'} name='criteria' value={criteria} change={this.onChange} />
-                <Button text={'Search'} btnColor={'primary'} click={this.onSubmit} />
-            </form>
+            <div className='main'>
+                <h2>Search repositories</h2>
+                <form className='form'>
+                    <Input placeholder={'Search'} name='criteria' value={criteria} change={this.onChange} />
+                    <Button text={'Search'} btnColor={'primary'} click={this.onSubmit} />
+                </form>
+            </div>
+
         )
     }
 }
 
 const mapDispatchToProps = (dispatch) => {
     return {
-        store: (criteria) => { dispatch({ type: 'STORE_CRITERIA', criteria }) },
+        store: (criteria) => { dispatch({ type: 'STORE_CRITERIA', criteria:criteria }) },
     }
 }
 

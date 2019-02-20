@@ -7,13 +7,13 @@ class App extends Component {
   render() {
     return (
       <div className="App">
-        <header className="App-header">
+        <div className="App-content">
           <Switch>
 
             <Route path='/list' component={ListComponent} />
             <Route path='/' component={SearchComponent} />
           </Switch>
-        </header>
+        </div>
       </div>
     );
   }

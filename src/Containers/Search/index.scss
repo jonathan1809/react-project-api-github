@@ -1,0 +1,16 @@
+.main{
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+    border: 2px solid rgb(117, 115, 115);
+    width: 100%;
+    max-width: 500px;
+    padding: 10%;
+    color: black;
+}
+
+.form{
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
